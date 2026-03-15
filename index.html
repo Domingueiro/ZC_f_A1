@@ -525,6 +525,7 @@
         document.getElementById('tab-' + id).classList.add('active');
         if (id === 'radar' && mapa) setTimeout(() => { mapa.invalidateSize(); }, 300);
         if (id === 'licitacoes') enviarCepAoIframe();
+        if (id === 'ranking') renderRanking();
     }
 
     function enviarCepAoIframe() {
@@ -783,11 +784,7 @@
     }
 
     // Inicializa ranking quando a aba é aberta
-    const _mudarAbaOriginal = mudarAba;
-    function mudarAba(id, btn) {
-        _mudarAbaOriginal(id, btn);
-        if (id === 'ranking') renderRanking();
-    }
+    // (ranking é renderizado dentro do mudarAba existente — sem sobrescrita)
 
     function abrirModalReal(id) {
         const m = document.getElementById('modal-real-' + id);
@@ -845,4 +842,4 @@
     }
 </script>
 </body>
-                </html>
+                                                                    </html>
