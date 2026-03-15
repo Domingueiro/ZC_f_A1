@@ -360,7 +360,16 @@
             <div id="sintese-texto"></div>
         </div>
 
-        <div class="acoes-titulo">O que você pode fazer agora</div>
+        <div class="acao-resultado" id="acao-resultado"></div>
+        <button class="btn-copiar" id="btn-copiar" onclick="copiarAcao()">📋 Copiar texto</button>
+
+        <div class="validacao-aviso" id="validacao-aviso">
+            🔍 <strong>Antes de enviar, valide as informações.</strong><br>
+            O projeto <strong>"Tá Certo Isso Aí?"</strong> da USP (ICMC) verifica a veracidade de textos via WhatsApp usando IA. Envie o conteúdo copiado para o bot antes de distribuir — especialmente ao acionar autoridades.<br><br>
+            Saiba mais: <a href="https://www.icmc.usp.br" target="_blank" rel="noopener">icmc.usp.br</a>
+        </div>
+
+        <div class="acoes-titulo" style="margin-top:20px">O que você pode fazer agora</div>
         <div class="acoes-grid">
             <button class="acao-btn" id="acao-whats" onclick="gerarAcao('whatsapp')">
                 <span class="acao-icon">💬</span>
@@ -382,15 +391,6 @@
                 <span class="acao-label">Notícia ao MP</span>
                 <span class="acao-desc">Minuta com tipificação</span>
             </button>
-        </div>
-
-        <div class="acao-resultado" id="acao-resultado"></div>
-        <button class="btn-copiar" id="btn-copiar" onclick="copiarAcao()">📋 Copiar texto</button>
-
-        <div class="validacao-aviso" id="validacao-aviso">
-            🔍 <strong>Antes de enviar, valide as informações.</strong><br>
-            O projeto <strong>"Tá Certo Isso Aí?"</strong> da USP (ICMC) verifica a veracidade de textos via WhatsApp usando IA. Envie o conteúdo copiado para o bot antes de distribuir — especialmente ao acionar autoridades.<br><br>
-            Saiba mais: <a href="https://www.icmc.usp.br" target="_blank" rel="noopener">icmc.usp.br</a>
         </div>
 
         <button class="btn-fechar-sintese" onclick="fecharSintese()">Fechar</button>
@@ -682,6 +682,9 @@
         resultado.textContent = 'Gerando texto…';
         resultado.classList.add('visible');
 
+        // Sobe para mostrar o resultado sendo gerado
+        document.querySelector('.modal-sintese').scrollTo({ top: 0, behavior: 'smooth' });
+
         await simularDelay(900);
 
         const texto = ACOES_SIMULADAS[tipo](sinteseAtual.tipo);
@@ -695,6 +698,9 @@
         } else {
             aviso.classList.remove('visible');
         }
+
+        // Scroll suave para o resultado após gerar
+        resultado.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function copiarAcao() {
