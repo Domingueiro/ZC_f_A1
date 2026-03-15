@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zelador Cívico — Auditoria Territorial</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=Syne:wght@700&family=Bebas+Neue&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --bg: #f5f2ec; --accent: #1a3a5c; --muted: #8a8478; --white: #ffffff;
+            --azul: #003f6b; --ouro: #FFD700; --ouro-alaranjado: #FFB800;
+            --vermelho: #d32f2f; --cinza2: #dde1e7;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--accent); font-family: 'Barlow', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+        /* PORTAL DE ENTRADA */
+        #portal-entrada { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .portal-card { text-align: center; max-width: 550px; width: 100%; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid var(--cinza2); }
+        .portal-card h1 { font-family: 'DM Serif Display', serif; font-size: 42px; color: var(--accent); margin-bottom: 10px; }
+        .lema-destaque { background: #000; color: var(--ouro-alaranjado); font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; text-transform: uppercase; padding: 22px; border-radius: 12px; margin: 20px 0 25px; border: 2px solid var(--ouro-alaranjado); display: block; width: 100%; line-height: 1.3; }
+
+        .input-group { display: flex; border: 2px solid var(--accent); border-radius: 10px; overflow: hidden; background: white; margin-bottom: 15px; }
+        .input-group input { flex: 1; border: none; padding: 18px; font-family: 'DM Mono'; font-size: 20px; outline: none; width: 100%; }
+        .btn-entrar { background: var(--accent); color: white; border: none; padding: 0 25px; cursor: pointer; font-weight: bold; font-size: 18px; }
+
+        .divisor { margin: 15px 0; font-family: 'DM Mono'; color: var(--muted); font-weight: bold; font-size: 14px; text-transform: uppercase; }
+        .btn-geo { width: 100%; padding: 16px; border: 2px solid var(--accent); border-radius: 10px; background: white; font-family: 'Syne'; font-weight: 700; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+        /* SISTEMA PRINCIPAL */
+        #sistema-auditoria { display: none; }
+        header { background: var(--azul); color: var(--white); padding: 15px; text-align: center; border-bottom: 4px solid var(--ouro); }
+        .tabs { display: flex; background: #000000; position: sticky; top: 0; z-index: 1000; }
+        .tab-btn { flex: 1; padding: 18px 10px; border: none; background: none; font-family: 'Syne'; font-weight: 700; color: #ffffff; cursor: pointer; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
+        .tab-btn.active { color: var(--ouro); border-bottom: 4px solid var(--ouro); background: #1a1a1a; }
+        .tab-content { display: none; padding: 20px; animation: fadeIn 0.4s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #map { height: 450px; border-radius: 15px; border: 2px solid var(--accent); background: #ddd; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+
+        .radar-icon { width: 16px; height: 16px; background: var(--vermelho); border-radius: 50%; border: 2px solid white; position: relative; cursor: pointer; }
+        .radar-icon::after { content: ''; position: absolute; width: 100%; height: 100%; background: var(--vermelho); border-radius: 50%; animation: pulse-radar 1.5s infinite; opacity: 0.6; top: 0; left: 0; }
+        @keyframes pulse-radar { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(4); opacity: 0; } }
+
+        .local-icon { font-size: 26px; line-height: 1; cursor: pointer; display: inline-block; animation: pulse-local 1.5s infinite; transform-origin: bottom center; }
+        @keyframes pulse-local { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(255,184,0,0)); } 50% { transform: scale(1.25); filter: drop-shadow(0 0 8px rgba(255,184,0,0.9)); } }
+
+        .info-box { background: white; padding: 15px; border-radius: 10px; border-left: 5px solid var(--ouro); margin-top: 15px; font-family: 'Barlow'; }
+        .btn-detalhar-popup { display: inline-block; margin-top: 10px; background: #000; color: var(--ouro) !important; padding: 8px 15px; border-radius: 6px; text-decoration: none; font-family: 'Syne'; font-size: 10px; font-weight: bold; text-transform: uppercase; border: 1px solid var(--ouro); cursor: pointer; }
+
+        /* LISTA DE ALERTAS NA ABA */
+        .alerta-card { background: white; border-radius: 10px; padding: 16px 18px; border-left: 5px solid var(--vermelho); margin-bottom: 12px; animation: fadeIn 0.4s ease both; transition: background 0.3s, border-left-color 0.3s; }
+        .alerta-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .alerta-card-id { font-family: 'Syne'; font-weight: 700; font-size: 13px; color: var(--vermelho); text-transform: uppercase; }
+        .alerta-card-data { font-family: 'DM Mono'; font-size: 11px; color: var(--muted); }
+        .alerta-card-tipo { font-family: 'DM Mono'; font-size: 13px; margin-top: 6px; }
+        .alerta-card-nota { font-family: 'DM Mono'; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+        .alerta-card.selecionado { border-left-color: var(--ouro); animation: pulso-card 1.5s infinite; }
+        @keyframes pulso-card {
+            0%   { background: white;   box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.5); }
+            50%  { background: #fffbe6; box-shadow: 0 0 0 8px rgba(255, 215, 0, 0); }
+            100% { background: white;   box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+        }
+
+        /* ALERTAS REAIS */
+        .alerta-real { background: white; border-radius: 10px; padding: 16px 18px; border-left: 5px solid #d32f2f; margin-bottom: 12px; }
+        .alerta-real-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+        .alerta-real-cat { font-family: 'Syne'; font-weight: 700; font-size: 12px; color: #d32f2f; text-transform: uppercase; }
+        .alerta-real-id { font-family: 'DM Mono'; font-size: 10px; color: var(--muted); }
+        .alerta-real-titulo { font-family: 'Syne'; font-weight: 700; font-size: 14px; color: var(--accent); margin-bottom: 6px; }
+        .alerta-real-desc { font-family: 'DM Mono'; font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+        .alerta-real-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .alerta-stat { background: #f5f2ec; border: 1px solid var(--cinza2); padding: 6px 10px; text-align: center; flex: 1; min-width: 80px; }
+        .alerta-stat-val { font-family: 'Bebas Neue'; font-size: 18px; color: var(--azul); }
+        .alerta-stat-label { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+        .btn-ver-modal { background: #000; color: var(--ouro); padding: 7px 14px; border: 1px solid var(--ouro); font-family: 'Syne'; font-size: 10px; font-weight: 700; text-transform: uppercase; cursor: pointer; letter-spacing: 1px; transition: background .2s; }
+        .btn-ver-modal:hover { background: #1a1a1a; }
+        .secao-titulo { font-family: 'Syne'; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid; padding-bottom: 8px; margin: 20px 0 14px; }
+
+        /* INVESTIMENTO */
+        .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .inv-card { background: white; border: 1px solid var(--cinza2); padding: 18px; position: relative; overflow: hidden; border-radius: 8px; }
+        .inv-card::before { content: attr(data-icon); position: absolute; right: 14px; top: 12px; font-size: 40px; opacity: .06; }
+        .inv-card-cat { font-family: 'DM Mono'; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+        .inv-card-nome { font-family: 'Barlow'; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 12px; line-height: 1.4; }
+        .inv-valor { font-family: 'Bebas Neue'; font-size: 28px; color: var(--azul); line-height: 1; margin-bottom: 3px; }
+        .inv-tipo { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .inv-progress { height: 3px; background: var(--cinza2); margin-bottom: 5px; }
+        .inv-progress-fill { height: 100%; background: linear-gradient(90deg, var(--azul), var(--ouro)); }
+        .inv-progress-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+        .inv-anomalia { background: #fff5f5; border: 1px solid #ffcdd2; border-left: 3px solid var(--vermelho); padding: 10px 12px; margin-top: 12px; }
+        .inv-anomalia-label { font-family: 'Syne'; font-size: 10px; font-weight: 700; color: var(--vermelho); letter-spacing: 1px; margin-bottom: 4px; }
+        .inv-anomalia-text { font-size: 11px; color: var(--muted); line-height: 1.5; }
+        .inv-anomalia-text strong { color: var(--accent); }
+        .comp-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; border: 1px solid var(--cinza2); }
+        .comp-table th { background: var(--azul); color: var(--ouro); font-family: 'Bebas Neue'; font-size: 13px; letter-spacing: 2px; padding: 10px 14px; text-align: left; }
+        .comp-table td { padding: 11px 14px; font-size: 12px; border-bottom: 1px solid var(--cinza2); }
+        .comp-table tr:last-child td { border-bottom: none; }
+        .comp-table tr:nth-child(even) td { background: #fafaf8; }
+        .badge { display: inline-block; padding: 2px 8px; font-family: 'Syne'; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+        .badge.falho { background: #ffebee; color: var(--vermelho); }
+        .badge.ok { background: #e8f5e9; color: #2e7d32; }
+        .badge.critico { background: #fce4ec; color: #c62828; }
+        .badge.zero { background: #f3e5f5; color: #6a1b9a; }
+
+        .btn-sintese { background: var(--azul); color: white; border: none; padding: 8px 16px; font-family: 'Syne'; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-radius: 6px; transition: background .2s; width: 100%; }
+        .btn-sintese:hover { background: #1a4f80; }
+        .btn-sintese:disabled { background: var(--muted); cursor: not-allowed; }
+
+        /* MODAL SÍNTESE */
+        .modal-sintese-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 9999; display: none; align-items: flex-end; justify-content: center; }
+        .modal-sintese-overlay.open { display: flex; }
+        .modal-sintese { background: white; width: 100%; max-width: 600px; max-height: 88vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 24px 20px 36px; animation: slideUp .3s ease; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-sintese-handle { width: 40px; height: 4px; background: var(--cinza2); border-radius: 2px; margin: 0 auto 18px; }
+        .modal-sintese-titulo { font-family: 'Syne'; font-size: 16px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+        .modal-sintese-sub { font-family: 'DM Mono'; font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+        .sintese-corpo { font-family: 'Barlow'; font-size: 13px; color: var(--accent); line-height: 1.7; margin-bottom: 20px; min-height: 80px; }
+        .sintese-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: 'DM Mono'; font-size: 12px; }
+        .sintese-spinner { width: 18px; height: 18px; border: 2px solid var(--cinza2); border-top-color: var(--azul); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .acoes-titulo { font-family: 'Syne'; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+        .acoes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .acao-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; border: 1px solid var(--cinza2); background: white; border-radius: 10px; cursor: pointer; text-align: left; transition: all .2s; }
+        .acao-btn:hover { border-color: var(--azul); background: #f0f4ff; }
+        .acao-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .acao-btn .acao-icon { font-size: 20px; }
+        .acao-btn .acao-label { font-family: 'Syne'; font-size: 11px; font-weight: 700; color: var(--accent); }
+        .acao-btn .acao-desc { font-family: 'DM Mono'; font-size: 10px; color: var(--muted); line-height: 1.4; }
+        .acao-resultado { background: #f5f2ec; border: 1px solid var(--cinza2); border-radius: 10px; padding: 14px; font-family: 'Barlow'; font-size: 12px; color: var(--accent); line-height: 1.7; margin-bottom: 12px; display: none; white-space: pre-wrap; }
+        .acao-resultado.visible { display: block; }
+        .btn-copiar { background: var(--azul); color: white; border: none; padding: 8px 18px; font-family: 'Syne'; font-size: 11px; font-weight: 700; cursor: pointer; border-radius: 6px; display: none; }
+        .btn-copiar.visible { display: inline-block; }
+        .btn-fechar-sintese { width: 100%; padding: 12px; background: none; border: 1px solid var(--cinza2); border-radius: 10px; font-family: 'Syne'; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; margin-top: 8px; }
+        .modal-overlay-local { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 9998; display: none; align-items: center; justify-content: center; padding: 16px; }
+        .modal-overlay-local.open { display: flex; }
+        .modal-local { background: white; border-radius: 12px; max-width: 620px; width: 100%; max-height: 85vh; overflow-y: auto; border-top: 4px solid var(--vermelho); animation: fadeIn .25s ease; }
+        .modal-local-header { padding: 18px 20px; border-bottom: 1px solid var(--cinza2); display: flex; justify-content: space-between; align-items: flex-start; }
+        .modal-local-tipo { font-family: 'DM Mono'; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--vermelho); margin-bottom: 3px; }
+        .modal-local-titulo { font-family: 'Syne'; font-size: 18px; font-weight: 800; color: var(--accent); }
+        .modal-local-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); }
+        .modal-local-body { padding: 20px; }
+        .tl { position: relative; padding-left: 16px; }
+        .tl::before { content:''; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 1px; background: var(--cinza2); }
+        .tl-item { position: relative; margin-bottom: 14px; padding-left: 16px; }
+        .tl-item::before { content:''; position: absolute; left: -11px; top: 5px; width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--azul); background: white; }
+        .tl-item.critico::before { border-color: var(--vermelho); background: #ffebee; }
+        .tl-item.alerta::before { border-color: #f57c00; }
+        .tl-date { font-family: 'DM Mono'; font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+        .tl-text { font-size: 12px; color: var(--accent); line-height: 1.5; }
+        .tl-text strong { color: var(--azul); }
+        .modal-local-footer { border-top: 1px solid var(--cinza2); padding: 14px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-modal-prim { background: var(--azul); color: white; border: none; cursor: pointer; font-family: 'Syne'; font-size: 12px; font-weight: 700; letter-spacing: 1px; padding: 9px 20px; transition: background .2s; }
+        .btn-modal-prim:hover { background: #1a4f80; }
+        .btn-modal-sec { background: none; border: 1px solid var(--cinza2); cursor: pointer; font-family: 'Syne'; font-size: 12px; font-weight: 700; color: var(--muted); padding: 9px 20px; transition: all .2s; }
+        .btn-modal-sec:hover { border-color: var(--azul); color: var(--azul); }
+    </style>
+</head>
+<body>
+
+<div id="portal-entrada">
+    <div class="portal-card">
+        <h1>Zelador Cívico</h1>
+        <div class="lema-destaque">Transformando visão em poder</div>
+        <div class="input-group">
+            <input type="text" id="cep-input" placeholder="00000-000" maxlength="9" inputmode="numeric">
+            <button class="btn-entrar" onclick="acessarComCep()">OK</button>
+        </div>
+        <div class="divisor"> — OU — </div>
+        <button class="btn-geo" onclick="acessarComGeo()">📍 USAR LOCALIZAÇÃO ATUAL</button>
+    </div>
+</div>
+
+<div id="sistema-auditoria">
+    <header style="padding: 12px 15px;">
+        <h2 style="font-family: 'Bebas Neue'; color: var(--ouro); letter-spacing: 3px; font-size: 28px; line-height: 1;">⚖ ZELADOR CÍVICO</h2>
+        <p style="font-family: 'Syne'; color: var(--ouro-alaranjado); font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; opacity: 0.85;">Transformando visão em poder</p>
+    </header>
+    
+    <div class="tabs">
+        <button class="tab-btn active" id="tab-btn-radar" onclick="mudarAba('radar', this)">RADAR</button>
+        <button class="tab-btn" id="tab-btn-alertas" onclick="mudarAba('alertas', this)">ALERTAS</button>
+        <button class="tab-btn" id="tab-btn-invest" onclick="mudarAba('investimento', this)">INVESTIMENTO</button>
+        <button class="tab-btn" id="tab-btn-licitacoes" onclick="mudarAba('licitacoes', this)">LICITAÇÕES</button>
+    </div>
+
+    <div id="tab-radar" class="tab-content active">
+        <div id="map"></div>
+        <div class="info-box">
+            <strong>🔍 STATUS DO PERÍMETRO:</strong>
+            <span id="status-perimetro">Toque em um ponto pulsante para auditar a anomalia.</span>
+        </div>
+    </div>
+
+    <div id="tab-alertas" class="tab-content">
+        <div class="secao-titulo" style="color:var(--vermelho); border-color:var(--vermelho)">⚠ Alertas do seu perímetro</div>
+        <div id="conteudo-alerta">
+            <p style="font-family: 'DM Mono';">Nenhuma anomalia detectada ainda. Insira um CEP no radar.</p>
+        </div>
+    </div>
+
+    <div id="tab-investimento" class="tab-content">
+        <div class="secao-titulo" style="color:var(--azul); border-color:var(--azul)">💰 Painel de Investimento</div>
+        <p style="font-family:'DM Mono'; font-size:11px; color:var(--muted); margin-bottom:18px;">Contratos ativos · São Paulo · Exercício 2022–2024</p>
+
+        <div class="inv-grid">
+            <div class="inv-card" data-icon="🚦">
+                <div class="inv-card-cat">Mobilidade Urbana</div>
+                <div class="inv-card-nome">Manutenção Semafórica — CET-SP<br>Processo CET-001/2021</div>
+                <div class="inv-valor">R$ 284M</div>
+                <div class="inv-tipo">Valor Global · Vigência 5 anos</div>
+                <div class="inv-progress"><div class="inv-progress-fill" style="width:58%"></div></div>
+                <div class="inv-progress-label"><span>Execução: 58% do prazo</span><span style="color:var(--vermelho)">SLA violado: 1.240×</span></div>
+                <div class="inv-anomalia">
+                    <div class="inv-anomalia-label">⚠ ANOMALIA TCM</div>
+                    <div class="inv-anomalia-text">Contrato não prevê substituição de cobre por <strong>alumínio antifurto</strong>. Custo de reposição repetida: <strong>R$ 18M/ano</strong> evitável.</div>
+                </div>
+            </div>
+            <div class="inv-card" data-icon="🌳">
+                <div class="inv-card-cat">Arborização Urbana</div>
+                <div class="inv-card-nome">Inventário Arbóreo com LiDAR — SVMA<br>Licitação SVMA-089/2022</div>
+                <div class="inv-valor">R$ 2,1M</div>
+                <div class="inv-tipo">Tecnologia de Escaneamento · 650 mil árvores</div>
+                <div class="inv-progress"><div class="inv-progress-fill" style="width:91%"></div></div>
+                <div class="inv-progress-label"><span>Mapeamento: 91% concluído</span><span style="color:#f57c00">Poda executada: 23%</span></div>
+                <div class="inv-anomalia">
+                    <div class="inv-anomalia-label">⚠ LACUNA DE EXECUÇÃO</div>
+                    <div class="inv-anomalia-text"><strong>Paradoxo LiDAR:</strong> diagnóstico preciso, orçamento de campo não acompanhou. <strong>Mapear não poda.</strong></div>
+                </div>
+            </div>
+            <div class="inv-card" data-icon="✂️">
+                <div class="inv-card-cat">Arborização Urbana</div>
+                <div class="inv-card-nome">Poda e Supressão de Árvores<br>Prefeituras Regionais — 2022</div>
+                <div class="inv-valor">R$ 47M</div>
+                <div class="inv-tipo">Execução de Campo · Distribuído por Zona</div>
+                <div class="inv-progress"><div class="inv-progress-fill" style="width:23%"></div></div>
+                <div class="inv-progress-label"><span>Metas anuais: 23% atingidas</span><span style="color:var(--vermelho)">Atraso: 77%</span></div>
+                <div class="inv-anomalia">
+                    <div class="inv-anomalia-label">⚠ SUBUTILIZAÇÃO</div>
+                    <div class="inv-anomalia-text">Capacidade para <strong>50.000 podas/ano</strong>. Executadas 11.500. Equipes ociosas em 3 prefeituras regionais.</div>
+                </div>
+            </div>
+            <div class="inv-card" data-icon="📡">
+                <div class="inv-card-cat">Tecnologia / Mobilidade</div>
+                <div class="inv-card-nome">Sistema de Telemetria Semafórica<br>CET-SP — Fase II (Não licitado)</div>
+                <div class="inv-valor" style="color:var(--vermelho)">R$ 0</div>
+                <div class="inv-tipo" style="color:var(--vermelho)">Não licitado · Orçado em R$ 31M</div>
+                <div class="inv-progress"><div class="inv-progress-fill" style="width:0;background:var(--vermelho)"></div></div>
+                <div class="inv-progress-label"><span style="color:var(--vermelho)">Execução: 0%</span><span>Previsto no PPA 2022–2025</span></div>
+                <div class="inv-anomalia">
+                    <div class="inv-anomalia-label">⚠ AUSÊNCIA CRÍTICA</div>
+                    <div class="inv-anomalia-text">Telemetria detectaria falha em <strong>minutos</strong>. Projeto incluído no PPA mas <strong>nunca licitado</strong>. Verba redirecionada.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="secao-titulo" style="color:var(--azul); border-color:var(--azul)">Comparativo: Licitado vs. Executado</div>
+        <table class="comp-table">
+            <thead><tr><th>Contrato</th><th>Valor Licitado</th><th>Executado / Cumprido</th><th>Eficiência</th></tr></thead>
+            <tbody>
+                <tr><td>🚦 Manutenção CET</td><td style="font-family:'Bebas Neue';font-size:15px;color:var(--azul)">R$ 284.000.000</td><td style="color:#f57c00">SLA violado 1.240×</td><td><span class="badge falho">FALHO</span></td></tr>
+                <tr><td>🌳 LiDAR / Inventário</td><td style="font-family:'Bebas Neue';font-size:15px;color:var(--azul)">R$ 2.100.000</td><td style="color:#2e7d32">91% mapeado</td><td><span class="badge ok">OK</span></td></tr>
+                <tr><td>✂️ Poda e Supressão</td><td style="font-family:'Bebas Neue';font-size:15px;color:var(--azul)">R$ 47.000.000</td><td style="color:var(--vermelho)">23% das metas</td><td><span class="badge critico">CRÍTICO</span></td></tr>
+                <tr><td>📡 Telemetria</td><td style="font-family:'Bebas Neue';font-size:15px;color:var(--azul)">R$ 31.000.000</td><td style="color:var(--vermelho)">Não licitado</td><td><span class="badge zero">ZERO</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-licitacoes" class="tab-content" style="padding: 0;">
+        <iframe id="iframe-licitacoes" src="licitacoes.html"
+            style="width:100%; height:calc(100vh - 120px); border:none; display:block;">
+        </iframe>
+    </div>
+</div>
+
+<!-- MODAL SÍNTESE TÉCNICA + AÇÕES -->
+<div class="modal-sintese-overlay" id="modal-sintese" onclick="fecharSintese(event)">
+    <div class="modal-sintese">
+        <div class="modal-sintese-handle"></div>
+        <div class="modal-sintese-titulo" id="sintese-titulo">Síntese Técnica</div>
+        <div class="modal-sintese-sub" id="sintese-sub"></div>
+
+        <div class="sintese-corpo" id="sintese-corpo">
+            <div class="sintese-loading" id="sintese-loading" style="display:none">
+                <div class="sintese-spinner"></div>
+                <span>Gerando análise técnica…</span>
+            </div>
+            <div id="sintese-texto"></div>
+        </div>
+
+        <div class="acoes-titulo">O que você pode fazer agora</div>
+        <div class="acoes-grid">
+            <button class="acao-btn" id="acao-whats" onclick="gerarAcao('whatsapp')">
+                <span class="acao-icon">💬</span>
+                <span class="acao-label">Grupo WhatsApp</span>
+                <span class="acao-desc">Texto para mobilizar vizinhos</span>
+            </button>
+            <button class="acao-btn" id="acao-vereador" onclick="gerarAcao('vereador')">
+                <span class="acao-icon">🏛️</span>
+                <span class="acao-label">Acionar Vereador</span>
+                <span class="acao-desc">Mensagem com dados e cobrança</span>
+            </button>
+            <button class="acao-btn" id="acao-tcm" onclick="gerarAcao('tcm')">
+                <span class="acao-icon">⚖️</span>
+                <span class="acao-label">Representação TCM</span>
+                <span class="acao-desc">Texto com base legal</span>
+            </button>
+            <button class="acao-btn" id="acao-mp" onclick="gerarAcao('mp')">
+                <span class="acao-icon">🔏</span>
+                <span class="acao-label">Notícia ao MP</span>
+                <span class="acao-desc">Minuta com tipificação</span>
+            </button>
+        </div>
+
+        <div class="acao-resultado" id="acao-resultado"></div>
+        <button class="btn-copiar" id="btn-copiar" onclick="copiarAcao()">📋 Copiar texto</button>
+
+        <button class="btn-fechar-sintese" onclick="fecharSintese()">Fechar</button>
+    </div>
+</div>
+
+<!-- MODAL: Apagão Semafórico -->
+<div class="modal-overlay-local" id="modal-real-cet001">
+    <div class="modal-local">
+        <div class="modal-local-header">
+            <div>
+                <div class="modal-local-tipo">🚦 Infraestrutura Semafórica · Crítico · CET-001/2021</div>
+                <div class="modal-local-titulo">Apagão Semafórico — 2022</div>
+            </div>
+            <button class="modal-local-close" onclick="fecharModalReal('cet001')">✕</button>
+        </div>
+        <div class="modal-local-body">
+            <div class="alerta-real-stats" style="margin-bottom:18px">
+                <div class="alerta-stat"><div class="alerta-stat-val" style="color:var(--vermelho)">72h</div><div class="alerta-stat-label">Sem manutenção</div></div>
+                <div class="alerta-stat"><div class="alerta-stat-val">4h</div><div class="alerta-stat-label">SLA contratual</div></div>
+                <div class="alerta-stat"><div class="alerta-stat-val" style="color:var(--vermelho)">1.240×</div><div class="alerta-stat-label">SLA violado</div></div>
+            </div>
+            <div style="font-family:'Syne';font-weight:700;font-size:12px;letter-spacing:2px;color:var(--azul);margin-bottom:12px;text-transform:uppercase">Linha do Tempo</div>
+            <div class="tl">
+                <div class="tl-item critico">
+                    <div class="tl-date">Dez 2022 · Madrugada</div>
+                    <div class="tl-text">Furto de cabo de cobre. Semáforos apagados. <strong>Nenhum alerta automático</strong> — ausência de telemetria.</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-date">Dez 2022 · Manhã</div>
+                    <div class="tl-text">Primeiros chamados via 156 por cidadãos. CET-SP protocola com atraso.</div>
+                </div>
+                <div class="tl-item alerta">
+                    <div class="tl-date">30h depois</div>
+                    <div class="tl-text">Equipes não acionadas. <strong>SLA de 4h violado há 26h.</strong> Sistema: "aguardando material".</div>
+                </div>
+                <div class="tl-item critico">
+                    <div class="tl-date">72h depois</div>
+                    <div class="tl-text"><strong>Acidente registrado</strong> em cruzamento sem sinalização. TCM instaurou auditoria em 2023.</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-date">2023 · Auditoria TCM</div>
+                    <div class="tl-text">TCM recomenda alumínio antifurto e telemetria. <strong>Contrato não foi revisado.</strong></div>
+                </div>
+            </div>
+            <div style="background:#fff5f5;border:1px solid #ffcdd2;border-left:3px solid var(--vermelho);padding:12px;margin-top:16px;font-size:11px;color:var(--muted);line-height:1.6">
+                <strong style="color:var(--vermelho)">Anomalia contratual:</strong> CET-001/2021 · R$284M · Multa: R$2.840/hora após SLA. Contrato não exige substituição de cobre por alumínio. Custo de reposição repetida: <strong style="color:var(--accent)">R$18.240 por ponto em 12 meses</strong> vs. R$2.100 com cabo antifurto.
+            </div>
+        </div>
+        <div class="modal-local-footer">
+            <button class="btn-modal-sec" onclick="fecharModalReal('cet001')">Fechar</button>
+            <button class="btn-modal-prim">📤 Exportar Denúncia</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Paradoxo LiDAR -->
+<div class="modal-overlay-local" id="modal-real-svma089">
+    <div class="modal-local" style="border-top-color:#f57c00">
+        <div class="modal-local-header">
+            <div>
+                <div class="modal-local-tipo" style="color:#f57c00">🌳 Arborização Urbana · Lacuna de Execução · SVMA-089/2022</div>
+                <div class="modal-local-titulo">Paradoxo LiDAR — SP</div>
+            </div>
+            <button class="modal-local-close" onclick="fecharModalReal('svma089')">✕</button>
+        </div>
+        <div class="modal-local-body">
+            <div class="alerta-real-stats" style="margin-bottom:18px">
+                <div class="alerta-stat"><div class="alerta-stat-val" style="color:#2e7d32">91%</div><div class="alerta-stat-label">Mapeado</div></div>
+                <div class="alerta-stat"><div class="alerta-stat-val" style="color:var(--vermelho)">23%</div><div class="alerta-stat-label">Podas exec.</div></div>
+                <div class="alerta-stat"><div class="alerta-stat-val">650K</div><div class="alerta-stat-label">Árvores</div></div>
+            </div>
+            <div style="font-family:'Syne';font-weight:700;font-size:12px;letter-spacing:2px;color:var(--azul);margin-bottom:12px;text-transform:uppercase">Linha do Tempo</div>
+            <div class="tl">
+                <div class="tl-item">
+                    <div class="tl-date">2022 · Licitação SVMA-089</div>
+                    <div class="tl-text">Contrato de R$2,1M para inventário arbóreo com LiDAR. <strong>650.000 árvores</strong> a serem mapeadas.</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-date">2023 · Progresso</div>
+                    <div class="tl-text">91% do inventário concluído. Milhares classificadas como <strong>prioritárias para intervenção</strong>.</div>
+                </div>
+                <div class="tl-item alerta">
+                    <div class="tl-date">2023 · Orçamento de execução</div>
+                    <div class="tl-text">Orçamento de poda cresceu <strong>8%</strong>. Árvores prioritárias identificadas cresceram <strong>340%</strong>.</div>
+                </div>
+                <div class="tl-item critico">
+                    <div class="tl-date">2024 · Balanço</div>
+                    <div class="tl-text">Metas de poda atingidas em <strong>23%</strong>. Verba não utilizada devolvida ao cofre.</div>
+                </div>
+            </div>
+            <div style="background:#fff8e1;border:1px solid #ffe082;border-left:3px solid #f57c00;padding:12px;margin-top:16px;font-size:11px;color:var(--muted);line-height:1.6">
+                <strong style="color:#f57c00">O paradoxo:</strong> R$2,1M em diagnóstico de precisão. O dado existe, a localização é precisa, o risco está catalogado — e não chegou à poda. <strong style="color:var(--accent)">Tecnologia de diagnóstico avançou; zeladoria de ponta não chegou junto.</strong>
+            </div>
+        </div>
+        <div class="modal-local-footer">
+            <button class="btn-modal-sec" onclick="fecharModalReal('svma089')">Fechar</button>
+            <button class="btn-modal-prim">📤 Exportar Denúncia</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  // Fallback: se cdnjs falhar, carrega do jsdelivr
+  if (typeof L === 'undefined') {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"><\/script>');
+  }
+</script>
+<script>
+    var mapa = null;
+    var markersLayer = null;
+    var alertasDetectados = [];
+    var ultimoCep = null;
+
+    const TIPOS_ALERTA = [
+        "Irregularidade em Licitação",
+        "Atraso Crítico em Obra",
+        "Discrepância Orçamentária"
+    ];
+
+    document.getElementById('cep-input').addEventListener('input', (e) => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length > 5) v = v.substring(0, 5) + '-' + v.substring(5, 8);
+        e.target.value = v;
+    });
+
+    function mudarAba(id, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + id).classList.add('active');
+        if (id === 'radar' && mapa) setTimeout(() => { mapa.invalidateSize(); }, 300);
+        if (id === 'licitacoes') enviarCepAoIframe();
+    }
+
+    function enviarCepAoIframe() {
+        const iframe = document.getElementById('iframe-licitacoes');
+        if (iframe && ultimoCep) {
+            iframe.contentWindow.postMessage({ cep: ultimoCep }, '*');
+        }
+    }
+
+    function abrirAlerta(id) {
+        document.getElementById('tab-btn-alertas').click();
+        document.querySelectorAll('.alerta-card').forEach(c => c.classList.remove('selecionado'));
+        const el = document.querySelector(`.alerta-card[data-id="${id}"]`);
+        if (el) {
+            el.classList.add('selecionado');
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function acessarComCep() {
+        const val = document.getElementById('cep-input').value.replace(/\D/g, '');
+        if (val.length === 8) iniciarSistema(val);
+        else alert("CEP incompleto.");
+    }
+
+    function acessarComGeo() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                () => iniciarSistema("01001000"),
+                () => alert("Não foi possível obter a localização.")
+            );
+        }
+    }
+
+    function plotarPontos(lat, lon) {
+        mapa.setView([lat, lon], 16);
+        markersLayer.clearLayers();
+        alertasDetectados = [];
+
+        const idLocal = 'AL-2026-LOCAL';
+        alertasDetectados.push({ id: idLocal, tipo: 'Sinalização Crítica no Local', local: true });
+
+        document.getElementById('status-perimetro').innerText = "4 anomalias detectadas — toque em um ponto para ver detalhes.";
+
+        // ── ENTORNO — plotados primeiro (camada inferior) ──
+        for (let i = 0; i < 3; i++) {
+            const rLat = lat + (Math.random() - 0.5) * 0.006;
+            const rLon = lon + (Math.random() - 0.5) * 0.006;
+            const id = `AL-2026-${i + 1}`;
+            alertasDetectados.push({ id, tipo: TIPOS_ALERTA[i], local: false });
+
+            const icon = L.divIcon({ className: '', html: '<div class="radar-icon"></div>', iconSize: [16, 16] });
+            L.marker([rLat, rLon], { icon })
+                .addTo(markersLayer)
+                .on('click', () => abrirAlerta(id));
+        }
+
+        // ── LOCAL — plotado por último (camada superior) ──
+        const iconLocal = L.divIcon({
+            className: '',
+            html: '<div class="local-icon">📍</div>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 28]
+        });
+        L.marker([lat, lon], { icon: iconLocal })
+            .addTo(markersLayer)
+            .on('click', () => abrirAlerta(idLocal));
+
+        // ── RENDERIZA ABA ALERTAS ──
+        const container = document.getElementById('conteudo-alerta');
+        container.innerHTML = alertasDetectados.map((a, i) => `
+            <div class="alerta-card${a.local ? ' alerta-local' : ''}" data-id="${a.id}" style="animation-delay:${i * 0.15}s; ${a.local ? 'border-left-color:var(--ouro-alaranjado);' : ''}">
+                <div class="alerta-card-header">
+                    <span class="alerta-card-id" style="${a.local ? 'color:var(--ouro-alaranjado);' : ''}">
+                        ${a.local ? '📍' : '⚠'} Ocorrência: ${a.id}
+                    </span>
+                    <span class="alerta-card-data">14/03/2026</span>
+                </div>
+                <div class="alerta-card-tipo"><b>TIPO:</b> ${a.tipo}</div>
+                <div class="alerta-card-nota">${a.local ? 'Irregularidade identificada diretamente no endereço do CEP informado.' : 'Discrepância detectada via cruzamento de dados urbanos. Ponto de fiscalização sugerido.'}</div>
+                <div style="margin-top:12px">
+                    <button class="btn-sintese" onclick="abrirSintese('${a.id}', '${a.tipo}', ${a.local})">
+                        🔍 SÍNTESE TÉCNICA + AÇÕES
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function buscarNominatim(query) {
+        return fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+            .then(r => r.json());
+    }
+
+    // ── SÍNTESE TÉCNICA + AÇÕES ────────────────────────────────────────────
+    var sinteseAtual = { id: null, tipo: null, local: false, texto: '' };
+
+    const SINTESES_SIMULADAS = {
+        'Sinalização Crítica no Local': `Esta ocorrência indica uma irregularidade identificada diretamente no endereço consultado. Trata-se de uma situação que demanda fiscalização imediata pelo órgão municipal competente.\n\nA Lei Orgânica do Município de São Paulo (Art. 204) estabelece que o Poder Executivo é responsável pela manutenção de infraestrutura urbana em condições seguras e funcionais. O descumprimento configura omissão administrativa passível de responsabilização.\n\nO impacto direto ao cidadão inclui risco à segurança, comprometimento da mobilidade e redução da qualidade de vida no entorno imediato. Em casos de dano, o Município pode ser responsabilizado civilmente.\n\nA irregularidade se caracteriza pela ausência de manutenção preventiva dentro dos prazos contratuais vigentes, evidenciando falha de fiscalização contratual pela Administração Pública.\n\nA urgência é ALTA: cada dia sem intervenção amplia o risco e o passivo do Município perante os munícipes afetados.`,
+
+        'Irregularidade em Licitação': `Foi detectada uma discrepância em processo licitatório municipal que pode indicar sobrepreço, direcionamento ou descumprimento contratual. A situação requer verificação formal junto ao órgão contratante.\n\nA Lei Federal 14.133/2021 (Nova Lei de Licitações) e a Lei Orgânica Municipal estabelecem requisitos de transparência, economicidade e eficiência nos contratos públicos. Desvios configuram infração administrativa e, em casos graves, ato de improbidade.\n\nO cidadão é diretamente lesado pelo desvio de recursos públicos que poderiam ser aplicados em serviços essenciais como saúde, educação e infraestrutura urbana.\n\nA irregularidade se enquadra potencialmente nos artigos 10 e 11 da Lei de Improbidade Administrativa (Lei 8.429/1992), que tratam de atos que causam prejuízo ao erário e atentam contra princípios da administração pública.\n\nA urgência é MÉDIA-ALTA: o processo pode estar em andamento, tornando fundamental a intervenção tempestiva para evitar consumação do dano.`,
+
+        'Atraso Crítico em Obra': `A obra identificada encontra-se em situação de atraso crítico, sem justificativa técnica registrada nos sistemas de acompanhamento da Prefeitura de São Paulo. Trata-se de descumprimento contratual com impacto direto na comunidade.\n\nO Decreto Municipal 57.086/2016 e as cláusulas contratuais padrão da PMSP estabelecem cronogramas obrigatórios e penalidades por atraso injustificado. O contratado está sujeito a multas e rescisão contratual por inexecução.\n\nA população local sofre os efeitos concretos: vias interditadas, risco de acidentes, acessibilidade comprometida e perda de qualidade de vida. Obras paralisadas também representam desperdício de recursos públicos já desembolsados.\n\nO atraso sem justificativa formal caracteriza inexecução parcial do contrato (Art. 137 da Lei 14.133/2021), sujeitando a contratada a sanções administrativas e a Administração à responsabilidade por omissão na fiscalização.\n\nA urgência é ALTA: quanto mais tempo a obra permanece paralisada, maiores os custos de remobilização, deterioração do material e dano ao erário público.`,
+
+        'Discrepância Orçamentária': `Foi identificada uma discrepância entre os valores orçados e os efetivamente executados em contrato municipal, o que pode indicar superfaturamento, desvio de finalidade ou falha grave de planejamento orçamentário.\n\nA Lei de Responsabilidade Fiscal (LC 101/2000) e a Lei Orgânica Municipal exigem que gastos públicos sejam realizados com eficiência, eficácia e transparência. Desvios entre planejado e executado devem ser formalmente justificados e auditados.\n\nO prejuízo ao cidadão é duplo: além da perda financeira direta ao erário, os recursos desviados ou mal aplicados deixam de financiar serviços públicos essenciais na região afetada.\n\nA discrepância pode configurar irregularidade passível de análise pelo TCM-SP, especialmente se houver indícios de superfaturamento (preços acima do mercado) ou desvio de finalidade (verba aplicada em objeto diferente do contratado).\n\nA urgência é MÉDIA: recomenda-se protocolo formal de questionamento junto ao órgão responsável e representação ao TCM para abertura de procedimento de auditoria.`
+    };
+
+    const ACOES_SIMULADAS = {
+        whatsapp: (tipo) => `⚠️ *ALERTA CÍVICO — ${tipo.toUpperCase()}*\n\nVizinhos, identificamos uma irregularidade no nosso bairro que precisa da nossa atenção coletiva.\n\nO problema foi documentado com dados públicos e representa descumprimento de obrigações municipais que afetam diretamente a nossa qualidade de vida.\n\n👉 O que podemos fazer:\n• Cobrar resposta da Prefeitura pelo 156\n• Solicitar posicionamento do nosso vereador\n• Registrar denúncia formal no TCM-SP\n\nUnidos somos mais efetivos. Quem topa agir junto? 🙋`,
+
+        vereador: (tipo) => `Prezado(a) Vereador(a),\n\nVenho, na qualidade de cidadão(ã) e morador(a) desta cidade, trazer ao seu conhecimento uma irregularidade de caráter público identificada em nossa região.\n\nTIPO DE OCORRÊNCIA: ${tipo}\nDATA DE IDENTIFICAÇÃO: 14/03/2026\nFONTE: Zelador Cívico — Sistema de Auditoria Municipal SP\n\nA situação evidencia descumprimento de obrigações contratuais e/ou administrativas pelo Poder Executivo Municipal, com impacto direto na população local.\n\nSolicito respeitosamente que V.Exa. se manifeste sobre o tema, requisite informações ao Executivo e, se entender pertinente, apresente requerimento de fiscalização ou indicação para providências junto à Prefeitura.\n\nColoco-me à disposição para fornecer dados complementares.\n\nAtenciosamente,\n[Nome do Cidadão]`,
+
+        tcm: (tipo) => `REPRESENTAÇÃO AO TRIBUNAL DE CONTAS DO MUNICÍPIO DE SÃO PAULO\n\nAo Exmo. Sr. Conselheiro Presidente do TCM-SP,\n\nO(A) signatário(a), cidadão(ã) paulistano(a), vem respeitosamente apresentar REPRESENTAÇÃO com fundamento no Art. 113 da Lei Federal 8.666/93 (c/c Art. 169 da Lei 14.133/2021) e no Regimento Interno do TCM-SP, em face de irregularidade identificada em contrato municipal.\n\nFATO: Identificou-se ocorrência classificada como "${tipo}" em equipamento/serviço público municipal, com indícios de descumprimento contratual, ineficiência na aplicação de recursos públicos e possível violação aos princípios da legalidade, eficiência e economicidade (Art. 37 da CF/88).\n\nPEDIDO: Requer-se a abertura de procedimento de auditoria para verificação do cumprimento contratual, apuração de eventuais irregularidades e adoção das medidas corretivas cabíveis.\n\nTermos em que pede deferimento.\n\nSão Paulo, 14 de março de 2026.\n[Nome e CPF do Representante]`,
+
+        mp: (tipo) => `NOTÍCIA DE FATO\nAo Ministério Público do Estado de São Paulo\nPromotor(a) de Justiça com atribuição em Patrimônio Público e Social\n\nO(A) noticiante, cidadão(ã) brasileiro(a), vem apresentar NOTÍCIA DE FATO referente a possível ato de improbidade administrativa e/ou omissão do Poder Público Municipal de São Paulo.\n\nFATO NOTICIADO: "${tipo}" — irregularidade identificada em serviço/contrato público municipal, com evidências de descumprimento de obrigações legais e contratuais pelo Poder Executivo.\n\nENQUADRAMENTO JURÍDICO SUGERIDO:\n• Art. 10 da Lei 8.429/1992 — Atos que causam prejuízo ao erário\n• Art. 11 da Lei 8.429/1992 — Atos que atentam contra princípios da Administração\n• Art. 37, §6º da CF/88 — Responsabilidade civil do Estado por omissão\n\nPEDIDO: Instauração de procedimento investigatório para apurar os fatos, identificar responsáveis e adotar as medidas judiciais e extrajudiciais cabíveis.\n\nSão Paulo, 14 de março de 2026.\n[Nome, CPF e contato do Noticiante]`
+    };
+
+    function simularDelay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function abrirSintese(id, tipo, local) {
+        sinteseAtual = { id, tipo, local, texto: '' };
+
+        document.getElementById('sintese-titulo').textContent = tipo;
+        document.getElementById('sintese-sub').textContent = `Ocorrência ${id} · 14/03/2026 · [SIMULAÇÃO]`;
+        document.getElementById('sintese-texto').innerHTML = '';
+        document.getElementById('acao-resultado').classList.remove('visible');
+        document.getElementById('btn-copiar').classList.remove('visible');
+        document.getElementById('modal-sintese').classList.add('open');
+        document.getElementById('sintese-loading').style.display = 'flex';
+
+        ['acao-whats','acao-vereador','acao-tcm','acao-mp'].forEach(b => {
+            document.getElementById(b).disabled = true;
+        });
+
+        await simularDelay(1400);
+
+        const texto = SINTESES_SIMULADAS[tipo] || SINTESES_SIMULADAS['Discrepância Orçamentária'];
+        sinteseAtual.texto = texto;
+        document.getElementById('sintese-loading').style.display = 'none';
+        document.getElementById('sintese-texto').innerHTML = texto.replace(/\n/g, '<br>');
+
+        ['acao-whats','acao-vereador','acao-tcm','acao-mp'].forEach(b => {
+            document.getElementById(b).disabled = false;
+        });
+    }
+
+    async function gerarAcao(tipo) {
+        const resultado = document.getElementById('acao-resultado');
+        const btnCopiar = document.getElementById('btn-copiar');
+        resultado.classList.remove('visible');
+        btnCopiar.classList.remove('visible');
+        resultado.textContent = 'Gerando texto…';
+        resultado.classList.add('visible');
+
+        await simularDelay(900);
+
+        const texto = ACOES_SIMULADAS[tipo](sinteseAtual.tipo);
+        resultado.textContent = texto;
+        btnCopiar.classList.add('visible');
+    }
+
+    function copiarAcao() {
+        const texto = document.getElementById('acao-resultado').textContent;
+        navigator.clipboard.writeText(texto).then(() => {
+            const btn = document.getElementById('btn-copiar');
+            btn.textContent = '✅ Copiado!';
+            setTimeout(() => { btn.textContent = '📋 Copiar texto'; }, 2000);
+        });
+    }
+
+    function fecharSintese(e) {
+        if (e && e.target !== document.getElementById('modal-sintese')) return;
+        document.getElementById('modal-sintese').classList.remove('open');
+    }
+
+    function abrirModalReal(id) {
+        const m = document.getElementById('modal-real-' + id);
+        if (m) m.classList.add('open');
+    }
+
+    function fecharModalReal(id) {
+        const m = document.getElementById('modal-real-' + id);
+        if (m) m.classList.remove('open');
+    }
+
+    document.querySelectorAll('.modal-overlay-local').forEach(o => {
+        o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+    });
+
+    function iniciarSistema(cep) {
+        ultimoCep = cep;
+        document.getElementById('portal-entrada').style.display = 'none';
+        document.getElementById('sistema-auditoria').style.display = 'block';
+
+        // Inicializa mapa e layer AQUI, depois que Leaflet já carregou
+        if (!mapa) {
+            mapa = L.map('map').setView([-23.55, -46.63], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(mapa);
+            markersLayer = L.layerGroup().addTo(mapa);
+        }
+
+        fetch(`https://viacep.com.br/ws/${cep}/json/`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.erro) { plotarPontos(-23.55, -46.63); return; }
+
+                const queryCompleta = (d.logradouro ? d.logradouro + ', ' : '') + (d.bairro || '') + ', São Paulo, Brasil';
+                const queryFallback = (d.bairro || 'São Paulo') + ', São Paulo, Brasil';
+
+                buscarNominatim(queryCompleta).then(g => {
+                    if (g && g[0]) {
+                        plotarPontos(parseFloat(g[0].lat), parseFloat(g[0].lon));
+                    } else {
+                        // Fallback: busca só por bairro/cidade
+                        buscarNominatim(queryFallback).then(g2 => {
+                            if (g2 && g2[0]) {
+                                plotarPontos(parseFloat(g2[0].lat), parseFloat(g2[0].lon));
+                            } else {
+                                // Fallback final: centro de SP
+                                plotarPontos(-23.55, -46.63);
+                            }
+                        });
+                    }
+                });
+            })
+            .catch(() => plotarPontos(-23.55, -46.63));
+    }
+</script>
+</body>
+</html>
